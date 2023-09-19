@@ -1,0 +1,16 @@
+{
+  "name": "micro-2",
+  "version": "1.0.0",
+  "description": "PoC MicroK8s cluster - Express js",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "author": "Miguel Fraga",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2"
+  }
+}
