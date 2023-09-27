@@ -1,7 +1,15 @@
 require('dotenv').config();
 const express = require('express');
 const app = express();
-const port = process.env.PORT || 3000;
+//const port = process.env.PORT || 3000;
+const port = 7500;
+
+function getServerId() {
+    if(process.env.SERVER_ID == null || process.env.SERVER_ID == undefined) {
+        return 'No value';
+    }
+    return process.env.SERVER_ID;
+}
 
 // Endpoint info
 app.get('/api/v1/info', (req, res, next) => {
@@ -11,7 +19,7 @@ app.get('/api/v1/info', (req, res, next) => {
         messages.push({
             message: "Hi from micro 3",
             context: `Random result: ${Math.random()}`,
-            server_id: process.env.SERVER_ID,
+            server_id: getServerId(),
             date: new Date()
         });
 
@@ -30,7 +38,7 @@ app.get('/api/v1/health-check', (req, res, next) => {
         res.json({
             status: "ACTIVE",
             date: new Date(),
-            server_id: process.env.SERVER_ID
+            server_id: getServerId()
         });
     } catch (error) {
         console.error(`[ERROR] Called server health check`);
