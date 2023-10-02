@@ -8,6 +8,7 @@ node {
         }
         else if(env.BRANCH_NAME == "develop") {
             sh "echo develop branch identified."
+            sh "dir"
             sh "echo executing code tests, analysis and deployment"
             try {
                 // Unit tests
