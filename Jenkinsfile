@@ -1,6 +1,12 @@
 node {
     stage('validate branch name') {
         sh "echo Branch name is: ${env.BRANCH_NAME}"
+        if(env.CHANGE_BRANCH) {
+            sh "echo ${env.CHANGE_BRANCH}"
+        }
+        if(env.CHANGE_TARGET) {
+            sh "echo ${CHANGE_TARGET}"
+        }
         sh "dir"
     }
     stage('code unit tests') {     
