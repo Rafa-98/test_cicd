@@ -8,6 +8,12 @@ node {
             sh "echo ${CHANGE_TARGET}"
         }
         sh "dir"
+        if(env.CHANGE_BRANCH) {
+            git branch: env.CHANGE_BRANCH, credentialsId: 'rafa_github_credentials', url: 'https://github.com/Rafa-98/test_cicd'
+        }
+        else {
+            git branch: env.BRANCH_NAME, credentialsId: 'rafa_github_credentials', url: 'https://github.com/Rafa-98/test_cicd'
+        }
     }
     stage('code unit tests') {     
         sh 'npm install'
