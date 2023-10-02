@@ -1,6 +1,32 @@
 node {
     stage('validate branch name') {
         sh "echo Branch name is: ${env.BRANCH_NAME}"
+        sh "dir"
+    }
+    stage('code unit tests') {     
+        sh 'npm install'
+        sh 'npm run test'
+    }
+    stage('Code Analysis') {
+        try {
+            def scannerHome = tool 'dev_sonar_scanner'
+            withSonarQubeEnv('dev_sonarqube_server') {
+            sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=poc-info -Dsonar.login=sqp_9378c6e9eda4a47d391770eb0f15e724607c8e7d"
+        }
+        } catch(Exception e) {
+            sh 'echo ERROR: Ha ocurrido un error durante la ejecución de análisis de código. ${e.getMessage()}'
+        }
+    }
+    stage("Quality Gate") {
+        timeout(time: 1, unit: 'HOURS') {
+            def qg = waitForQualityGate()
+            if (qg.status != 'OK') {
+                error "ERROR: Pipeline aborted due to quality gate failure: ${qg.status}"
+            }
+            else {
+                sh 'echo SUCCESS: El proyecto aprobó los criterios mínimos de calidad.'
+            }
+        }
     }
     stage('decision based on branch name') {
         if(env.BRANCH_NAME.contains("feature")) {
@@ -11,27 +37,6 @@ node {
             sh "dir"
             sh "echo executing code tests, analysis and deployment"
             try {
-                // Unit tests
-                sh 'npm install'
-                sh 'npm run test'
-
-                // Code Analysis
-                def scannerHome = tool 'dev_sonar_scanner'
-                withSonarQubeEnv('dev_sonarqube_server') {
-                    sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=poc-info -Dsonar.login=sqp_9378c6e9eda4a47d391770eb0f15e724607c8e7d"
-                }
-
-                //Wait for Quality Gate
-                timeout(time: 1, unit: 'HOURS') {
-                    def qg = waitForQualityGate()
-                    if (qg.status != 'OK') {
-                        error "ERROR: Pipeline aborted due to quality gate failure: ${qg.status}"
-                    }
-                    else {
-                        sh 'echo SUCCESS: El proyecto aprobó los criterios mínimos de calidad.'
-                    }
-                }
-
                 // Image build
                 sh 'docker build . -t mendezrafael98/poc-info-jenkins'
                 sh 'echo image built'
