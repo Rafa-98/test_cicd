@@ -17,7 +17,8 @@ node {
                 // Code Analysis
                 def scannerHome = tool 'dev_sonar_scanner'
                 withSonarQubeEnv('dev_sonarqube_server') {
-                sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=poc-info -Dsonar.login=sqp_9378c6e9eda4a47d391770eb0f15e724607c8e7d"
+                    sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=poc-info -Dsonar.login=sqp_9378c6e9eda4a47d391770eb0f15e724607c8e7d"
+                }
 
                 //Wait for Quality Gate
                 timeout(time: 1, unit: 'HOURS') {
