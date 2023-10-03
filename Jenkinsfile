@@ -1,3 +1,13 @@
+/*void setBuildStatus(String message, String state) {
+  step([
+      $class: "GitHubCommitStatusSetter",
+      reposSource: [$class: "ManuallyEnteredRepositorySource", url: "https://github.com/Rafa-98/test_cicd"],
+      contextSource: [$class: "ManuallyEnteredCommitContextSource", context: "ci/jenkins/build-status"],
+      errorHandlers: [[$class: "ChangingBuildStatusErrorHandler", result: "UNSTABLE"]],
+      statusResultSource: [ $class: "ConditionalStatusResultSource", results: [[$class: "AnyBuildResult", message: message, state: state]] ]
+  ]);
+}*/
+
 node {
     stage('validate branch name') {
         sh "echo Branch name is: ${env.BRANCH_NAME}"
@@ -43,6 +53,7 @@ node {
     stage('decision based on branch name') {
         if(env.BRANCH_NAME.contains("feature")) {
             sh "echo feature branch identified."
+            setBuildStatus("Build succeeded", "SUCCESS");
         }
         else if(env.BRANCH_NAME == "develop") {
             sh "echo develop branch identified."
@@ -60,12 +71,16 @@ node {
 
                 // Container deployment
                 ansiblePlaybook credentialsId: 'admin_ssh_access', disableHostKeyChecking: true, installation: 'dev_ansible_server', inventory: '/etc/ansible/hosts', playbook: '/usr/local/ansible/manifests/poc-info-kube-deploy.yaml'    
+
+                setBuildStatus("Build succeeded", "SUCCESS");
             } catch(Exception e) {
                 error "ERROR. Aborting execution."
+                setBuildStatus("Build failed", "FAILURE");
             }
         }
         else {
             sh "echo ERROR: unknown branch identified."
+            setBuildStatus("Build succeeded", "SUCCESS");
         }
     }
 }
