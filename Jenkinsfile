@@ -11,6 +11,7 @@ void setBuildStatus(String message, String state) {
 node {
     stage('validate branch name') {
         sh "echo Branch name is: ${env.BRANCH_NAME}"
+        sh "echo Branch Commit is: ${env.GIT_COMMIT}"
         if(env.CHANGE_BRANCH) {
             sh "echo ${env.CHANGE_BRANCH}"
         }
