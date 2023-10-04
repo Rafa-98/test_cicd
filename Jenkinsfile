@@ -10,10 +10,7 @@ void setBuildStatus(String message, String state) {
 
 node {
     stage("Set check status in progress") {
-        publishChecks
-            name: 'sucessful build',
-            detailsURL: 'http://95.22.2.142:49520',
-            status: 'IN_PROGRESS'
+        publishChecks name: 'sucessful build', detailsURL: 'http://95.22.2.142:49520', status: 'IN_PROGRESS'
     }
     stage('validate branch name') {
         sh "echo Branch name is: ${env.BRANCH_NAME}"
