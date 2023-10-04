@@ -1,14 +1,4 @@
-void setBuildStatus(String message, String state) {
-  step([
-      $class: "GitHubCommitStatusSetter",
-      reposSource: [$class: "ManuallyEnteredRepositorySource", url: "https://github.com/Rafa-98/test_cicd"],
-      contextSource: [$class: "ManuallyEnteredCommitContextSource", context: "ci/jenkins/build-status"],
-      errorHandlers: [[$class: "ChangingBuildStatusErrorHandler", result: "UNSTABLE"]],
-      statusResultSource: [ $class: "ConditionalStatusResultSource", results: [[$class: "AnyBuildResult", message: message, state: state]] ]
-  ]);
-}
-
-node {
+node {    
     stage('validate branch name') {
         sh "echo Branch name is: ${env.BRANCH_NAME}"
         sh "echo Branch Commit is: ${env.GIT_COMMIT}"
@@ -27,17 +17,22 @@ node {
         }
     }
     stage('code unit tests') {     
+        publishChecks name: 'Unit Tests', detailsURL: 'http://95.22.2.142:49520', status: 'IN_PROGRESS'
         sh 'npm install'
         sh 'npm run test'
+        publishChecks name: 'Unit Tests', detailsURL: 'http://95.22.2.142:49520', status: 'COMPLETED', conclusion: 'SUCCESS'
     }
     stage('Code Analysis') {
+        publishChecks name: 'Code Analysis', detailsURL: 'http://95.22.2.142:49520', status: 'IN_PROGRESS'
         try {
             def scannerHome = tool 'dev_sonar_scanner'
             withSonarQubeEnv('dev_sonarqube_server') {
             sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=poc-info -Dsonar.login=sqp_9378c6e9eda4a47d391770eb0f15e724607c8e7d"
+            publishChecks name: 'Code Analysis', detailsURL: 'http://95.22.2.142:49520', status: 'COMPLETED', conclusion: 'SUCCESS'
         }
         } catch(Exception e) {
             sh 'echo ERROR: Ha ocurrido un error durante la ejecución de análisis de código. ${e.getMessage()}'
+            publishChecks name: 'Code Analysis', detailsURL: 'http://95.22.2.142:49520', status: 'COMPLETED', conclusion: 'FAILURE'
         }
     }
     stage("Quality Gate") {
@@ -53,8 +48,7 @@ node {
     }
     stage('decision based on branch name') {
         if(env.BRANCH_NAME.contains("feature")) {
-            sh "echo feature branch identified."
-            setBuildStatus("Build succeeded", "SUCCESS");
+            sh "echo feature branch identified."            
         }
         else if(env.BRANCH_NAME == "develop") {
             sh "echo develop branch identified."
@@ -62,26 +56,29 @@ node {
             sh "echo executing code tests, analysis and deployment"
             try {
                 // Image build
+                publishChecks name: 'App Build', detailsURL: 'http://95.22.2.142:49520', status: 'IN_PROGRESS'
                 sh 'docker build . -t mendezrafael98/poc-info-jenkins'
                 sh 'echo image built'
+                publishChecks name: 'App Build', detailsURL: 'http://95.22.2.142:49520', status: 'COMPLETED', conclusion: 'SUCCESS'
 
                 // Image publish to Container Registry
+                publishChecks name: 'Publish App to Registry', detailsURL: 'http://95.22.2.142:49520', status: 'IN_PROGRESS'
                 withDockerRegistry([ credentialsId: "rafa_docker_registry_credentials", url: "" ]) {
                     sh 'docker push mendezrafael98/poc-info-jenkins'
                 }
+                publishChecks name: 'Publish App to Registry', detailsURL: 'http://95.22.2.142:49520', status: 'COMPLETED', conclusion: 'SUCCESS'
 
                 // Container deployment
+                publishChecks name: 'App Deployment', detailsURL: 'http://95.22.2.142:49520', status: 'IN_PROGRESS' 
                 ansiblePlaybook credentialsId: 'admin_ssh_access', disableHostKeyChecking: true, installation: 'dev_ansible_server', inventory: '/etc/ansible/hosts', playbook: '/usr/local/ansible/manifests/poc-info-kube-deploy.yaml'    
-
-                setBuildStatus("Build succeeded", "SUCCESS");
+                publishChecks name: 'App Deployment', detailsURL: 'http://95.22.2.142:49520', status: 'COMPLETED', conclusion: 'SUCCESS'
+                
             } catch(Exception e) {
-                error "ERROR. Aborting execution."
-                setBuildStatus("Build failed", "FAILURE");
+                error "ERROR. Aborting execution."                
             }
         }
         else {
-            sh "echo ERROR: unknown branch identified."
-            setBuildStatus("Build succeeded", "SUCCESS");
+            sh "echo WARNING: unknown branch identified."            
         }
     }
 }
