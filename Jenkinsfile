@@ -1,4 +1,5 @@
-node {    
+node {   
+    def currentBranch = "" 
     stage('validate branch name') {
         sh "echo Branch name is: ${env.BRANCH_NAME}"
         sh "echo Branch Commit is: ${env.GIT_COMMIT}"
@@ -9,11 +10,14 @@ node {
             sh "echo ${CHANGE_TARGET}"
         }
         sh "dir"
+        
         if(env.CHANGE_BRANCH) {
             git branch: env.CHANGE_BRANCH, credentialsId: 'rafa_github_credentials', url: 'https://github.com/Rafa-98/test_cicd'
+            currentBranch = env.CHANGE_BRANCH
         }
         else {
             git branch: env.BRANCH_NAME, credentialsId: 'rafa_github_credentials', url: 'https://github.com/Rafa-98/test_cicd'
+            currentBranch = env.BRANCH_NAME
         }
     }
     stage('code unit tests') {     
@@ -27,7 +31,7 @@ node {
         try {
             def scannerHome = tool 'dev_sonar_scanner'
             withSonarQubeEnv('dev_sonarqube_server') {
-            sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=poc-info -Dsonar.login=sqp_9378c6e9eda4a47d391770eb0f15e724607c8e7d"
+            sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=poc-info -Dsonar.login=sqp_9378c6e9eda4a47d391770eb0f15e724607c8e7d -Dsonar.branch.name=${currentBranch}"
             publishChecks name: 'Code Analysis', detailsURL: 'http://95.22.2.142:49520', status: 'COMPLETED', conclusion: 'SUCCESS'
         }
         } catch(Exception e) {
