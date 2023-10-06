@@ -1,88 +1,140 @@
+def deploymentDecision(branch) {
+    switch(branch) {
+        case "main": return false; break;
+        case branch.contains("hotfix"): return true; break;
+        case branch.contains("release"): return true; break;
+        case "qa": return true; break;
+        case "develop": return true; break;
+        case branch.contains("feature"): return false; break;
+        case branch.contains("fix"): return false; break;
+        default: false; break;        
+    }
+}
+
 node {   
-    def currentBranch = "" 
-    stage('validate branch name') {
-        sh "echo Branch name is: ${env.BRANCH_NAME}"
-        sh "echo Branch Commit is: ${env.GIT_COMMIT}"
+    // ---------------------------------------------------- VARIABLES DEFINITION -------------------------------------------------------- //
+    def currentBranch = ""
+    def detailsURL = "http://95.22.2.142:49520"
+    def status = [in_progress: "IN_PROGRESS", completed: "COMPLETED", queued: "QUEUED"]
+    def githubChecks = [
+        unit_tests: "Unit Tests", 
+        code_analysis: "Code Analysis", 
+        app_build: "App Build", 
+        app_publish: "Publish App to Registry", 
+        app_deployment: "App Deployment"
+    ]
+    def conclusions = [
+        action_required: "ACTION_REQUIRED", 
+        skipped: "SKIPPED", 
+        canceled: "CANCELED", 
+        time_out: "TIME_OUT", 
+        failure: "FAILURE", 
+        neutral: "NEUTRAL", 
+        success: "SUCCESS", 
+        none: "NONE"
+    ]
+
+    // ---------------------------------------------------- GET REPOSITORY CODE -------------------------------------------------------- //
+    stage('validate branch name') {        
         if(env.CHANGE_BRANCH) {
             sh "echo ${env.CHANGE_BRANCH}"
         }
         if(env.CHANGE_TARGET) {
             sh "echo ${CHANGE_TARGET}"
-        }
-        sh "dir"
+        }        
         
+        def github_credentials_id = "rafa_github_credentials"
+        def repository_url = "https://github.com/Rafa-98/test_cicd"
         if(env.CHANGE_BRANCH) {
-            git branch: env.CHANGE_BRANCH, credentialsId: 'rafa_github_credentials', url: 'https://github.com/Rafa-98/test_cicd'
+            git branch: env.CHANGE_BRANCH, credentialsId: "${github_credentials_id}", url: "${repository_url}"
             currentBranch = env.CHANGE_BRANCH
         }
         else {
-            git branch: env.BRANCH_NAME, credentialsId: 'rafa_github_credentials', url: 'https://github.com/Rafa-98/test_cicd'
+            git branch: env.BRANCH_NAME, credentialsId: "${github_credentials_id}", url: "${repository_url}"
             currentBranch = env.BRANCH_NAME
         }
     }
-    stage('code unit tests') {     
-        publishChecks name: 'Unit Tests', detailsURL: 'http://95.22.2.142:49520', status: 'IN_PROGRESS'
+
+    // ---------------------------------------------------- UNIT TESTS -------------------------------------------------------------------- //
+    stage('Code unit tests') { 
+        publishChecks name: "${githubChecks.unit_tests}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
         sh 'npm install'
         sh 'npm run test'
-        publishChecks name: 'Unit Tests', detailsURL: 'http://95.22.2.142:49520', status: 'COMPLETED', conclusion: 'SUCCESS'
-    }
+        publishChecks name: "${githubChecks.unit_tests}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
+    }    
+
+    // ---------------------------------------------------- CODE ANALYSIS -------------------------------------------------------- //
     stage('Code Analysis') {
-        publishChecks name: 'Code Analysis', detailsURL: 'http://95.22.2.142:49520', status: 'IN_PROGRESS'
+        publishChecks name: "${githubChecks.code_analysis}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
         try {
             def scannerHome = tool 'dev_sonar_scanner'
             withSonarQubeEnv('dev_sonarqube_server') {
-            sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=poc-info -Dsonar.login=sqp_9378c6e9eda4a47d391770eb0f15e724607c8e7d -Dsonar.branch.name=${currentBranch}"
-            publishChecks name: 'Code Analysis', detailsURL: 'http://95.22.2.142:49520', status: 'COMPLETED', conclusion: 'SUCCESS'
-        }
+                withCredentials([string(credentialsId: 'sonar-poc-info-token', variable: 'sonarProjectToken')]) {
+                    sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=poc-info -Dsonar.login=${sonarProjectToken} -Dsonar.branch.name=${currentBranch}"            
+                }
+            }
         } catch(Exception e) {
-            sh 'echo ERROR: Ha ocurrido un error durante la ejecución de análisis de código. ${e.getMessage()}'
-            publishChecks name: 'Code Analysis', detailsURL: 'http://95.22.2.142:49520', status: 'COMPLETED', conclusion: 'FAILURE'
+            sh "echo ERROR: Ha ocurrido un error durante la ejecución de análisis de código. ${e.getMessage()}"
+            publishChecks name: "${githubChecks.code_analysis}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.failure}"
         }
-    }
+    }    
+
+    // ---------------------------------------------------- WAIT FOR QUALITY GATE -------------------------------------------------------- //
     stage("Quality Gate") {
         timeout(time: 1, unit: 'HOURS') {
             def qg = waitForQualityGate()
             if (qg.status != 'OK') {
+                publishChecks name: "${githubChecks.code_analysis}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.failure}"
                 error "ERROR: Pipeline aborted due to quality gate failure: ${qg.status}"
             }
             else {
                 sh 'echo SUCCESS: El proyecto aprobó los criterios mínimos de calidad.'
+                publishChecks name: "${githubChecks.code_analysis}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
             }
         }
-    }
-    stage('decision based on branch name') {
-        if(env.BRANCH_NAME.contains("feature")) {
-            sh "echo feature branch identified."            
-        }
-        else if(env.BRANCH_NAME == "develop") {
-            sh "echo develop branch identified."
-            sh "dir"
-            sh "echo executing code tests, analysis and deployment"
+    }    
+    
+    def shouldDeploy = deploymentDecision(env.BRANCH_NAME)
+    if(shouldDeploy) {
+        // ---------------------------------------------------- APP IMAGE BUILD ---------------------------------------------------------------- //
+        stage("App Image Build") {
             try {
-                // Image build
-                publishChecks name: 'App Build', detailsURL: 'http://95.22.2.142:49520', status: 'IN_PROGRESS'
-                sh 'docker build . -t mendezrafael98/poc-info-jenkins'
-                sh 'echo image built'
-                publishChecks name: 'App Build', detailsURL: 'http://95.22.2.142:49520', status: 'COMPLETED', conclusion: 'SUCCESS'
-
-                // Image publish to Container Registry
-                publishChecks name: 'Publish App to Registry', detailsURL: 'http://95.22.2.142:49520', status: 'IN_PROGRESS'
-                withDockerRegistry([ credentialsId: "rafa_docker_registry_credentials", url: "" ]) {
-                    sh 'docker push mendezrafael98/poc-info-jenkins'
-                }
-                publishChecks name: 'Publish App to Registry', detailsURL: 'http://95.22.2.142:49520', status: 'COMPLETED', conclusion: 'SUCCESS'
-
-                // Container deployment
-                publishChecks name: 'App Deployment', detailsURL: 'http://95.22.2.142:49520', status: 'IN_PROGRESS' 
-                ansiblePlaybook credentialsId: 'admin_ssh_access', disableHostKeyChecking: true, installation: 'dev_ansible_server', inventory: '/etc/ansible/hosts', playbook: '/usr/local/ansible/manifests/poc-info-kube-deploy.yaml'    
-                publishChecks name: 'App Deployment', detailsURL: 'http://95.22.2.142:49520', status: 'COMPLETED', conclusion: 'SUCCESS'
-                
-            } catch(Exception e) {
-                error "ERROR. Aborting execution."                
+                publishChecks name: "${githubChecks.app_build}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
+                sh "docker build . -t mendezrafael98/poc-info-jenkins"            
+                publishChecks name: "${githubChecks.app_build}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
+            } catch(Exception ex) {
+                publishChecks name: "${githubChecks.app_build}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.failure}"
+                error "ERROR. Aborting App Build execution. ${e.getMessage()}"
             }
         }
-        else {
-            sh "echo WARNING: unknown branch identified."            
+
+        // ---------------------------------------------------- APP PUBLISH TO REGISTRY -------------------------------------------------------- //
+        stage("App publish to Container Registry") {
+            try {
+                publishChecks name: "${githubChecks.app_publish}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
+                withDockerRegistry([ credentialsId: "rafa_docker_registry_credentials", url: "" ]) {
+                    sh "docker push mendezrafael98/poc-info-jenkins"
+                }
+                publishChecks name: "${githubChecks.app_publish}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
+            } catch(Exception ex) {
+                publishChecks name: "${githubChecks.app_publish}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.failure}"
+                error "ERROR. Aborting App Publish to Container Registry execution. ${e.getMessage()}"
+            }
+        }
+
+        // ---------------------------------------------------- APP DEPLOYMENT-------- -------------------------------------------------------- //
+        stage("App deployment") {
+            try {
+                publishChecks name: "${githubChecks.app_deployment}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
+                ansiblePlaybook credentialsId: 'admin_ssh_access', disableHostKeyChecking: true, installation: 'dev_ansible_server', inventory: '/etc/ansible/hosts', playbook: '/usr/local/ansible/manifests/poc-info-kube-deploy.yaml'    
+                publishChecks name: "${githubChecks.app_deployment}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
+            } catch(Exception ex) {
+                publishChecks name: "${githubChecks.app_deployment}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.failure}"
+                error "ERROR. Aborting App Deployment execution. ${e.getMessage()}"
+            }
         }
     }
+    else {
+        sh "echo No project image build and deployment for branch ${env.BRANCH_NAME} is needed."
+    }    
 }
