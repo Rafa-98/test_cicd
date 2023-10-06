@@ -7,7 +7,7 @@ def deploymentDecision(branch) {
         case "develop": return true; break;
         case branch.contains("feature"): return false; break;
         case branch.contains("fix"): return false; break;
-        default false; break;        
+        default: false; break;        
     }
 }
 
