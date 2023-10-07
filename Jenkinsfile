@@ -11,6 +11,17 @@ def deploymentDecision(branch) {
     }
 }
 
+def getDeploymentName(branch) {
+    switch(branch) {
+        case "main": return "production"; break;
+        case branch.contains("hotfix"): return "hotfix"; break;
+        case branch.contains("release"): return "preprod"; break;
+        case "qa": return "qa"; break;
+        case "develop": return "develop"; break;        
+        default: "unknown"; break;    
+    }
+}
+
 node {   
     // ---------------------------------------------------- VARIABLES DEFINITION -------------------------------------------------------- //
     def currentBranch = ""
@@ -33,16 +44,10 @@ node {
         success: "SUCCESS", 
         none: "NONE"
     ]
+    def app_name = "poc-info-cicd"
 
     // ---------------------------------------------------- GET REPOSITORY CODE -------------------------------------------------------- //
     stage('validate branch name') {        
-        if(env.CHANGE_BRANCH) {
-            sh "echo ${env.CHANGE_BRANCH}"
-        }
-        if(env.CHANGE_TARGET) {
-            sh "echo ${CHANGE_TARGET}"
-        }        
-        
         def github_credentials_id = "rafa_github_credentials"
         def repository_url = "https://github.com/Rafa-98/test_cicd"
         if(env.CHANGE_BRANCH) {
@@ -92,7 +97,7 @@ node {
                 publishChecks name: "${githubChecks.code_analysis}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
             }
         }
-    }    
+    }
     
     def shouldDeploy = deploymentDecision(env.BRANCH_NAME)
     if(shouldDeploy) {
@@ -100,7 +105,7 @@ node {
         stage("App Image Build") {
             try {
                 publishChecks name: "${githubChecks.app_build}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
-                sh "docker build . -t mendezrafael98/poc-info-jenkins"            
+                sh "docker build . -t mendezrafael98/${app_name}:${getDeploymentName(env.BRANCH_NAME)}"            
                 publishChecks name: "${githubChecks.app_build}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
             } catch(Exception ex) {
                 publishChecks name: "${githubChecks.app_build}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.failure}"
@@ -113,7 +118,7 @@ node {
             try {
                 publishChecks name: "${githubChecks.app_publish}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
                 withDockerRegistry([ credentialsId: "rafa_docker_registry_credentials", url: "" ]) {
-                    sh "docker push mendezrafael98/poc-info-jenkins"
+                    sh "docker push mendezrafael98/${app_name}:${getDeploymentName(env.BRANCH_NAME)}"
                 }
                 publishChecks name: "${githubChecks.app_publish}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
             } catch(Exception ex) {
@@ -126,7 +131,7 @@ node {
         stage("App deployment") {
             try {
                 publishChecks name: "${githubChecks.app_deployment}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
-                ansiblePlaybook credentialsId: 'admin_ssh_access', disableHostKeyChecking: true, installation: 'dev_ansible_server', inventory: '/etc/ansible/hosts', playbook: '/usr/local/ansible/manifests/poc-info-kube-deploy.yaml'    
+                ansiblePlaybook credentialsId: 'admin_ssh_access', disableHostKeyChecking: true, installation: 'dev_ansible_server', inventory: '/etc/ansible/hosts', playbook: "/usr/local/ansible/manifests/${app_name}/execute-deployment.yaml", extraVars: { extraVar("environment", "${getDeploymentName(env.BRANCH_NAME)}", false), extraVar("app_name", "${app_name}", false) }
                 publishChecks name: "${githubChecks.app_deployment}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
             } catch(Exception ex) {
                 publishChecks name: "${githubChecks.app_deployment}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.failure}"
