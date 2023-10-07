@@ -131,7 +131,7 @@ node {
         stage("App deployment") {
             try {
                 publishChecks name: "${githubChecks.app_deployment}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
-                ansiblePlaybook credentialsId: 'admin_ssh_access', disableHostKeyChecking: true, installation: 'dev_ansible_server', inventory: '/etc/ansible/hosts', playbook: "/usr/local/ansible/manifests/${app_name}/execute-deployment.yaml", extraVars: { extraVar("environment", "${getDeploymentName(env.BRANCH_NAME)}", false) extraVar("app_name", "${app_name}", false) }
+                ansiblePlaybook credentialsId: 'admin_ssh_access', disableHostKeyChecking: true, installation: 'dev_ansible_server', inventory: '/etc/ansible/hosts', playbook: "/usr/local/ansible/manifests/${app_name}/execute-deployment.yaml", extraVars: [environment: "${getDeploymentName(env.BRANCH_NAME)}", app_name: "${app_name}"]
                 publishChecks name: "${githubChecks.app_deployment}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
             } catch(Exception ex) {
                 publishChecks name: "${githubChecks.app_deployment}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.failure}"
