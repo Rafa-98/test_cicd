@@ -101,11 +101,12 @@ node {
     
     def shouldDeploy = deploymentDecision(env.BRANCH_NAME)
     if(shouldDeploy) {
+        def environment = getDeploymentName(env.BRANCH_NAME)
         // ---------------------------------------------------- APP IMAGE BUILD ---------------------------------------------------------------- //
         stage("App Image Build") {
             try {
                 publishChecks name: "${githubChecks.app_build}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
-                sh "docker build . -t mendezrafael98/${app_name}:${getDeploymentName(env.BRANCH_NAME)}"            
+                sh "docker build . -t mendezrafael98/${app_name}:${environment}"            
                 publishChecks name: "${githubChecks.app_build}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
             } catch(Exception ex) {
                 publishChecks name: "${githubChecks.app_build}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.failure}"
@@ -118,7 +119,7 @@ node {
             try {
                 publishChecks name: "${githubChecks.app_publish}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
                 withDockerRegistry([ credentialsId: "rafa_docker_registry_credentials", url: "" ]) {
-                    sh "docker push mendezrafael98/${app_name}:${getDeploymentName(env.BRANCH_NAME)}"
+                    sh "docker push mendezrafael98/${app_name}:${environment}"
                 }
                 publishChecks name: "${githubChecks.app_publish}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
             } catch(Exception ex) {
@@ -131,7 +132,7 @@ node {
         stage("App deployment") {
             try {
                 publishChecks name: "${githubChecks.app_deployment}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
-                ansiblePlaybook credentialsId: 'admin_ssh_access', disableHostKeyChecking: true, installation: 'dev_ansible_server', inventory: '/etc/ansible/hosts', playbook: "/usr/local/ansible/manifests/${app_name}/execute-deployment.yaml", extraVars: [environment: "${getDeploymentName(env.BRANCH_NAME)}", app_name: "${app_name}"]
+                ansiblePlaybook credentialsId: 'admin_ssh_access', disableHostKeyChecking: true, installation: 'dev_ansible_server', inventory: '/etc/ansible/hosts', playbook: "/usr/local/ansible/manifests/${app_name}/execute-deployment.yaml", extraVars: [environment: "${environment}", app_name: "${app_name}"]
                 publishChecks name: "${githubChecks.app_deployment}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
             } catch(Exception ex) {
                 publishChecks name: "${githubChecks.app_deployment}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.failure}"
