@@ -100,16 +100,13 @@ node {
     }
     
     def shouldDeploy = deploymentDecision(env.BRANCH_NAME)
-    if(shouldDeploy) {
-        def environment = getDeploymentName(env.BRANCH_NAME)
-        def deploy_env = getDeploymentName(env.BRANCH_NAME)
-        sh "echo enviroment is: ${environment}"
-        sh "echo deploy_env is: ${deploy_env}"
+    if(shouldDeploy) {        
+        def deploy_env = getDeploymentName(env.BRANCH_NAME)                
         // ---------------------------------------------------- APP IMAGE BUILD ---------------------------------------------------------------- //
         stage("App Image Build") {
             try {
                 publishChecks name: "${githubChecks.app_build}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
-                sh "docker build . -t mendezrafael98/${app_name}:${environment}"            
+                sh "docker build . -t mendezrafael98/${app_name}:${deploy_env}"            
                 publishChecks name: "${githubChecks.app_build}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
             } catch(Exception ex) {
                 publishChecks name: "${githubChecks.app_build}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.failure}"
@@ -122,7 +119,7 @@ node {
             try {
                 publishChecks name: "${githubChecks.app_publish}", detailsURL: "${detailsURL}", status: "${status.in_progress}", conclusion: "${conclusions.none}"
                 withDockerRegistry([ credentialsId: "rafa_docker_registry_credentials", url: "" ]) {
-                    sh "docker push mendezrafael98/${app_name}:${environment}"
+                    sh "docker push mendezrafael98/${app_name}:${deploy_env}"
                 }
                 publishChecks name: "${githubChecks.app_publish}", detailsURL: "${detailsURL}", status: "${status.completed}", conclusion: "${conclusions.success}"
             } catch(Exception ex) {
