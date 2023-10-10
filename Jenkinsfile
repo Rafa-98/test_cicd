@@ -44,8 +44,7 @@ node {
         success: "SUCCESS", 
         none: "NONE"
     ]
-    //def app_name = "poc-info-cicd"
-    def app_name = "demo"
+    def app_name = "poc-info-cicd"    
 
     // ---------------------------------------------------- GET REPOSITORY CODE -------------------------------------------------------- //
     stage('validate branch name') {        
