@@ -17,7 +17,7 @@ app.get('/api/v1/info', (req, res, next) => {
         console.log("[INFO] Called server info");
         const messages = [];
         messages.push({
-            message: "Hi from micro 3",
+            message: "Hi from micro 3 - QA",
             context: `Random result: ${Math.random()}`,
             server_id: getServerId(),
             date: new Date()
